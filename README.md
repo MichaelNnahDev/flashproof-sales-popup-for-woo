@@ -1,20 +1,27 @@
-# WooCommerce Lightweight Social Proof Engine
+# FlashProof Sales Popup for Woo ⚡
 
-A lightweight, zero-dependency sales notification popup plugin for WooCommerce stores. It displays real, recent orders with accurate relative timestamps while using transient caching to prevent database strain.
+[![WordPress Plugin Directory](https://img.shields.io/badge/WordPress.org-Plugin-blue.svg)](https://wordpress.org/plugins/flashproof-sales-popup-for-woo/)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-green.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
+[![PHP Version](https://img.shields.io/badge/PHP-7.4%2B-blueviolet.svg)](https://www.php.net/)
+[![Requires Plugins](https://img.shields.io/badge/Requires%20Plugins-WooCommerce-96588a.svg)](https://woocommerce.com/)
+
+A lightweight, zero-dependency sales notification popup system for WooCommerce stores. FlashProof displays verified, recent order notifications with accurate relative timestamps while using transient memory caching to eliminate unnecessary database strain.
 
 ## Key Features
 
-- **Built-in Admin Dashboard:** Fully configurable via **WooCommerce > Social Proof** with color pickers, font controls, and timing adjustments.
-- **UTC Timezone Accuracy:** Matches WooCommerce order creation timestamps directly against UTC `time()` to eliminate negative or skewed "minutes ago" calculations across any server timezone.
-- **Low Database Overhead:** Employs a customizable WordPress transient cache (`wclsp_social_proof_cache`) so repetitive page loads do not hammer the database.
-- **Dynamic CSS Variables:** Styles and colors update instantly without recompiling or loading external bloat.
-- **Conditional Asset Loading:** Styles and scripts are only queued on targeted storefront pages (`is_front_page()`, `is_shop()`, `is_product_taxonomy()`).
-- **Security Hardened:** All AJAX requests are nonce-protected (`check_ajax_referer`) and buyer display fields are sanitized and escaped before rendering.
+- **Built-in Admin Dashboard:** Fully configurable via **WooCommerce > Social Proof** with HEX inputs, synchronized color pickers, and live timing adjustments.
+- **Desktop & Mobile Clearance Offsets:** Independent viewport offsets ensure the popup floats cleanly above sticky mobile checkout bars, cart drawers, and floating chat icons.
+- **Placement Flexibility:** Toggle between Bottom-Left and Bottom-Right display positions.
+- **UTC Timezone Synchronization:** Matches WooCommerce order creation timestamps directly against UTC `time()` to eliminate skewed or negative "minutes ago" calculations across any server timezone.
+- **Low Database Overhead:** Employs a customizable WordPress transient cache (`wclsp_social_proof_cache`) so incoming storefront visitors never trigger repetitive SQL queries.
+- **Pure Vanilla JS Engine:** Sub-3KB client script footprint with zero dependencies on jQuery or external tracking servers.
+- **Data Privacy by Design:** Only queries and displays buyer first names and general locations (city/country). Full surnames, street addresses, billing specifics, and payment details are never retrieved or exposed.
+- **Security Hardened:** AJAX endpoints are nonce-verified, admin script data is injected via `wp_add_inline_script()` with `wp_json_encode()`, and all outputs are escaped with strict context wrappers.
 
 ## Repository Structure
 
 ```text
-woocommerce-lightweight-social-proof/
+flashproof-sales-popup-for-woo/
 ├── assets/
 │   ├── css/
 │   │   └── social-proof.css
@@ -28,47 +35,5 @@ woocommerce-lightweight-social-proof/
 ├── .gitignore
 ├── LICENSE
 ├── README.md
+├── readme.txt
 └── woocommerce-lightweight-social-proof.php
-```
-
-## Installation
-
-### Method 1: Git Clone (Development)
-Navigate to your WordPress plugin directory and clone the repository:
-```bash
-cd /path/to/wordpress/wp-content/plugins/
-git clone [https://github.com/your-username/woocommerce-lightweight-social-proof.git](https://github.com/your-username/woocommerce-lightweight-social-proof.git)
-```
-
-### Method 2: Manual Zip Installation
-1. Download or archive this repository as a `.zip` file.
-2. In WordPress Admin, navigate to **Plugins > Add New > Upload Plugin**.
-3. Select the `.zip` archive and click **Install Now**.
-4. Click **Activate Plugin**.
-
-### Method 3: WP-CLI
-```bash
-wp plugin activate woocommerce-lightweight-social-proof
-```
-
-## Configuration & Behavior
-
-All settings can be configured in WP Admin under **WooCommerce > Social Proof**:
-
-- **Visual & Styling:**
-  - **Background Color:** Default `#151515` (deep onyx).
-  - **Text Color:** Default `#ffffff`.
-  - **Accent / Highlight Color:** Default `#D4AF37` (gold).
-  - **Verified Badge Color:** Default `#25D366` (emerald).
-  - **Font Family:** Inherits theme typography or custom fonts (e.g., `'Mulish', sans-serif`).
-- **Timing & Behavior:**
-  - **Initial Delay:** Seconds before the first popup triggers (default: 6s).
-  - **Display Duration:** Seconds each popup stays visible (default: 6s).
-  - **Interval Range:** Min and Max delay between subsequent popups (default: 15s to 30s).
-- **Query & Cache Settings:**
-  - **Order History Scope:** Hours of past order history to include (default: 48h).
-  - **Transient Cache Lifetime:** Cache duration in minutes (default: 5m). Saving settings automatically purges stale transients.
-
-## License
-
-This project is open-source and licensed under the [GPL-2.0-or-later](LICENSE).
