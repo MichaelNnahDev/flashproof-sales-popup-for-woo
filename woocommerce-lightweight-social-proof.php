@@ -1,16 +1,18 @@
 <?php
 /**
- * Plugin Name:       Lightweight Sales Popup for Woo
- * Plugin URI:        https://wclsp.michaelnnah.com
- * Description:       Ultra-lightweight, zero-bloat live sales popup and social proof notification engine for Woo stores.
+ * Plugin Name:       FlashProof Sales Popup for Woo
+ * Plugin URI:        https://wclsp.michaelnnah.com/
+ * Description:       Zero-dependency, high-performance live sales notification popup system for Woo stores.
  * Version:           1.2.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
+ * Requires Plugins:  woocommerce
  * Author:            Michael Nnah
- * Author URI:        https://michaelnnah.com
+ * Author URI:        https://portfolio.michaelnnah.com/
  * License:           GPL v2 or later
  * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
- * Text Domain:       lightweight-sales-popup-for-woo
+ * Text Domain:       flashproof-sales-popup-for-woo
+ * Domain Path:       /languages
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

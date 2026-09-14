@@ -1,333 +1,360 @@
 <?php
 if ( ! defined( 'ABSPATH' ) ) {
-    exit;
+	exit;
 }
 
 if ( ! class_exists( 'WCLSP_Social_Proof_Admin' ) ) :
 
 class WCLSP_Social_Proof_Admin {
 
-    public static function init() {
-        add_action( 'admin_menu', array( __CLASS__, 'add_settings_page' ) );
-        add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
-        add_action( 'admin_init', array( __CLASS__, 'handle_dismiss_optin' ) );
-    }
+	public static function init() {
+		add_action( 'admin_menu', array( __CLASS__, 'add_settings_page' ) );
+		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
+		add_action( 'admin_init', array( __CLASS__, 'handle_dismiss_optin' ) );
+		add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue_admin_scripts' ) );
+	}
 
-    public static function handle_dismiss_optin() {
-        if ( isset( $_GET['wclsp_dismiss_optin'] ) && check_admin_referer( 'wclsp_dismiss_optin_nonce' ) ) {
-            if ( current_user_can( 'manage_woocommerce' ) ) {
-                update_user_meta( get_current_user_id(), 'wclsp_optin_dismissed', 1 );
-                wp_safe_redirect( remove_query_arg( array( 'wclsp_dismiss_optin', '_wpnonce' ) ) );
-                exit;
-            }
-        }
-    }
+	public static function handle_dismiss_optin() {
+		if ( isset( $_GET['wclsp_dismiss_optin'] ) && check_admin_referer( 'wclsp_dismiss_optin_nonce' ) ) {
+			if ( current_user_can( 'manage_woocommerce' ) ) {
+				update_user_meta( get_current_user_id(), 'wclsp_optin_dismissed', 1 );
+				wp_safe_redirect( remove_query_arg( array( 'wclsp_dismiss_optin', '_wpnonce' ) ) );
+				exit;
+			}
+		}
+	}
 
-    public static function get_defaults() {
-        return array(
-            'bg_color'           => '#151515',
-            'text_color'         => '#ffffff',
-            'accent_color'       => '#D4AF37',
-            'badge_color'        => '#25D366',
-            'font_family'        => 'inherit',
-            'position_desktop'   => 'bottom-left',
-            'bottom_offset_desk' => 24,
-            'bottom_offset_mob'  => 75,
-            'mobile_scale'       => 90,
-            'initial_delay'      => 6,
-            'display_duration'   => 6,
-            'min_interval'       => 15,
-            'max_interval'       => 30,
-            'order_hours'        => 48,
-            'order_statuses'     => array( 'wc-on-hold' ),
-            'cache_minutes'      => 5,
-        );
-    }
+	public static function enqueue_admin_scripts( $hook_suffix ) {
+		// Only run on the plugin's WooCommerce settings page.
+		if ( 'woocommerce_page_wclsp-settings' !== $hook_suffix ) {
+			return;
+		}
 
-    public static function get_options() {
-        $defaults = self::get_defaults();
-        $saved    = get_option( 'wclsp_settings', array() );
-        return wp_parse_args( $saved, $defaults );
-    }
+		$is_dismissed = get_user_meta( get_current_user_id(), 'wclsp_optin_dismissed', true );
+		if ( $is_dismissed ) {
+			return;
+		}
 
-    public static function add_settings_page() {
-        add_submenu_page(
-            'woocommerce',
-            __( 'Social Proof Settings', 'lightweight-sales-popup-for-woo' ),
-            __( 'Social Proof', 'lightweight-sales-popup-for-woo' ),
-            'manage_woocommerce',
-            'wclsp-settings',
-            array( __CLASS__, 'render_settings_page' )
-        );
-    }
+		$dismiss_url = wp_nonce_url(
+			add_query_arg( array( 'wclsp_dismiss_optin' => '1' ) ),
+			'wclsp_dismiss_optin_nonce'
+		);
 
-    public static function register_settings() {
-        register_setting( 'wclsp_settings_group', 'wclsp_settings', array(
-            'sanitize_callback' => array( __CLASS__, 'sanitize_settings' ),
-        ) );
+		$script_data = array(
+			'dismissUrl'    => esc_url_raw( $dismiss_url ),
+			'sendingText'   => __( 'Sending...', 'flashproof-sales-popup-for-woo' ),
+			'successText'   => __( '✅ Snippet package dispatched! Check your inbox shortly.', 'flashproof-sales-popup-for-woo' ),
+			'errorText'     => __( '❌ Could not dispatch. Please try again or skip.', 'flashproof-sales-popup-for-woo' ),
+			'resetBtnText'  => __( 'Send Free Presets', 'flashproof-sales-popup-for-woo' ),
+		);
 
-        // 1. Visual & Styling
-        add_settings_section( 'wclsp_style_section', __( 'Visual & Styling', 'lightweight-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
-        add_settings_field( 'bg_color', __( 'Background Color', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'bg_color', 'desc' => 'Default: #151515' ) );
-        add_settings_field( 'text_color', __( 'Text Color', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'text_color', 'desc' => 'Default: #ffffff' ) );
-        add_settings_field( 'accent_color', __( 'Accent / Highlight Color', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'accent_color', 'desc' => 'Default: #D4AF37 (Metallic Gold)' ) );
-        add_settings_field( 'badge_color', __( 'Verified Badge Color', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'badge_color', 'desc' => 'Default: #25D366' ) );
-        add_settings_field( 'font_family', __( 'Font Family (CSS)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_text' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'font_family', 'desc' => 'e.g. "Mulish", sans-serif or "inherit"' ) );
+		$inline_js = '
+		document.addEventListener("DOMContentLoaded", function() {
+			var config = ' . wp_json_encode( $script_data ) . ';
+			var optinForm = document.getElementById("wclsp-ajax-optin-form");
+			var submitBtn = document.getElementById("wclsp-submit-btn");
+			var statusBox = document.getElementById("wclsp-feedback-status");
 
-        // 2. Position & Layout
-        add_settings_section( 'wclsp_position_section', __( 'Position & Layout', 'lightweight-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
-        add_settings_field( 'position_desktop', __( 'Desktop Position', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_select' ), 'wclsp-settings', 'wclsp_position_section', array(
-            'id'      => 'position_desktop',
-            'options' => array(
-                'bottom-left'  => __( 'Bottom Left', 'lightweight-sales-popup-for-woo' ),
-                'bottom-right' => __( 'Bottom Right', 'lightweight-sales-popup-for-woo' ),
-            ),
-        ) );
-        add_settings_field( 'bottom_offset_desk', __( 'Desktop Bottom Offset (px)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_position_section', array( 'id' => 'bottom_offset_desk', 'min' => 0, 'max' => 300 ) );
-        add_settings_field( 'bottom_offset_mob', __( 'Mobile Bottom Offset (px)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_position_section', array( 'id' => 'bottom_offset_mob', 'min' => 0, 'max' => 300 ) );
-        add_settings_field( 'mobile_scale', __( 'Mobile Size Scale (%)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_position_section', array( 'id' => 'mobile_scale', 'min' => 60, 'max' => 110 ) );
+			if (optinForm && submitBtn && statusBox) {
+				optinForm.addEventListener("submit", function(e) {
+					e.preventDefault();
 
-        // 3. Timing & Behavior
-        add_settings_section( 'wclsp_behavior_section', __( 'Timing & Behavior', 'lightweight-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
-        add_settings_field( 'initial_delay', __( 'Initial Delay (seconds)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'initial_delay', 'min' => 1, 'max' => 60 ) );
-        add_settings_field( 'display_duration', __( 'Display Duration (seconds)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'display_duration', 'min' => 2, 'max' => 30 ) );
-        add_settings_field( 'min_interval', __( 'Minimum Interval (seconds)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'min_interval', 'min' => 5, 'max' => 300 ) );
-        add_settings_field( 'max_interval', __( 'Maximum Interval (seconds)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'max_interval', 'min' => 5, 'max' => 300 ) );
+					submitBtn.disabled = true;
+					submitBtn.innerText = config.sendingText;
 
-        // 4. Query & Cache
-        add_settings_section( 'wclsp_query_section', __( 'Query & Cache Settings', 'lightweight-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
-        add_settings_field( 'order_hours', __( 'Order History Scope (hours)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_query_section', array( 'id' => 'order_hours', 'min' => 1, 'max' => 720 ) );
-        add_settings_field( 'order_statuses', __( 'Included Order Statuses', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_statuses' ), 'wclsp-settings', 'wclsp_query_section', array( 'id' => 'order_statuses' ) );
-        add_settings_field( 'cache_minutes', __( 'Transient Cache Lifetime (minutes)', 'lightweight-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_query_section', array( 'id' => 'cache_minutes', 'min' => 1, 'max' => 120 ) );
-    }
+					var formData = new FormData(optinForm);
 
-    public static function sanitize_settings( $input ) {
-        $sanitized = array();
-        $defaults  = self::get_defaults();
+					fetch("https://michaelnnah.com/api/wclsp-leads.php", {
+						method: "POST",
+						body: formData
+					})
+					.then(function(response) {
+						return response.json();
+					})
+					.then(function() {
+						optinForm.style.display = "none";
+						statusBox.style.display = "block";
+						statusBox.style.color = "#16a34a";
+						statusBox.textContent = config.successText;
 
-        $clean_hex = function( $color, $default ) {
-            if ( ! empty( $color ) && preg_match( '/^#([a-fA-F0-9]{3}){1,2}$/', $color ) ) {
-                return $color;
-            }
-            return $default;
-        };
+						setTimeout(function() {
+							window.location.href = config.dismissUrl;
+						}, 2500);
+					})
+					.catch(function() {
+						submitBtn.disabled = false;
+						submitBtn.innerText = config.resetBtnText;
+						statusBox.style.display = "block";
+						statusBox.style.color = "#dc2626";
+						statusBox.textContent = config.errorText;
+					});
+				});
+			}
+		});';
 
-        $sanitized['bg_color']           = $clean_hex( $input['bg_color'] ?? '', $defaults['bg_color'] );
-        $sanitized['text_color']         = $clean_hex( $input['text_color'] ?? '', $defaults['text_color'] );
-        $sanitized['accent_color']       = $clean_hex( $input['accent_color'] ?? '', $defaults['accent_color'] );
-        $badge_color                     = $input['badge_color'] ?? $defaults['badge_color'];
-        $sanitized['badge_color']        = $clean_hex( $badge_color, $defaults['badge_color'] );
-        $sanitized['font_family']        = sanitize_text_field( $input['font_family'] ?? $defaults['font_family'] );
+		wp_add_inline_script( 'common', $inline_js );
+	}
 
-        $valid_positions                 = array( 'bottom-left', 'bottom-right' );
-        $sanitized['position_desktop']   = in_array( $input['position_desktop'] ?? '', $valid_positions, true ) ? $input['position_desktop'] : $defaults['position_desktop'];
-        $sanitized['bottom_offset_desk'] = absint( $input['bottom_offset_desk'] ?? $defaults['bottom_offset_desk'] );
-        $sanitized['bottom_offset_mob']  = absint( $input['bottom_offset_mob'] ?? $defaults['bottom_offset_mob'] );
-        $sanitized['mobile_scale']       = absint( $input['mobile_scale'] ?? $defaults['mobile_scale'] );
+	public static function get_defaults() {
+		return array(
+			'bg_color'           => '#151515',
+			'text_color'         => '#ffffff',
+			'accent_color'       => '#D4AF37',
+			'badge_color'        => '#25D366',
+			'font_family'        => 'inherit',
+			'position_desktop'   => 'bottom-left',
+			'bottom_offset_desk' => 24,
+			'bottom_offset_mob'  => 75,
+			'mobile_scale'       => 90,
+			'initial_delay'      => 6,
+			'display_duration'   => 6,
+			'min_interval'       => 15,
+			'max_interval'       => 30,
+			'order_hours'        => 48,
+			'order_statuses'     => array( 'wc-on-hold' ),
+			'cache_minutes'      => 5,
+		);
+	}
 
-        $sanitized['initial_delay']      = absint( $input['initial_delay'] ?? $defaults['initial_delay'] );
-        $sanitized['display_duration']   = absint( $input['display_duration'] ?? $defaults['display_duration'] );
-        $sanitized['min_interval']       = absint( $input['min_interval'] ?? $defaults['min_interval'] );
-        $sanitized['max_interval']       = absint( $input['max_interval'] ?? $defaults['max_interval'] );
-        $sanitized['order_hours']        = absint( $input['order_hours'] ?? $defaults['order_hours'] );
+	public static function get_options() {
+		$defaults = self::get_defaults();
+		$saved    = get_option( 'wclsp_settings', array() );
+		return wp_parse_args( $saved, $defaults );
+	}
 
-        $allowed_statuses  = array( 'wc-on-hold', 'wc-pending', 'wc-processing', 'wc-completed' );
-        $selected_statuses = array();
-        if ( ! empty( $input['order_statuses'] ) && is_array( $input['order_statuses'] ) ) {
-            foreach ( $input['order_statuses'] as $status ) {
-                if ( in_array( $status, $allowed_statuses, true ) ) {
-                    $selected_statuses[] = sanitize_text_field( $status );
-                }
-            }
-        }
-        $sanitized['order_statuses'] = ! empty( $selected_statuses ) ? $selected_statuses : array( 'wc-on-hold' );
-        $sanitized['cache_minutes']  = absint( $input['cache_minutes'] ?? $defaults['cache_minutes'] );
+	public static function add_settings_page() {
+		add_submenu_page(
+			'woocommerce',
+			__( 'Social Proof Settings', 'flashproof-sales-popup-for-woo' ),
+			__( 'Social Proof', 'flashproof-sales-popup-for-woo' ),
+			'manage_woocommerce',
+			'wclsp-settings',
+			array( __CLASS__, 'render_settings_page' )
+		);
+	}
 
-        delete_transient( 'wclsp_social_proof_cache' );
+	public static function register_settings() {
+		register_setting( 'wclsp_settings_group', 'wclsp_settings', array(
+			'sanitize_callback' => array( __CLASS__, 'sanitize_settings' ),
+		) );
 
-        return $sanitized;
-    }
+		// 1. Visual & Styling
+		add_settings_section( 'wclsp_style_section', __( 'Visual & Styling', 'flashproof-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
+		add_settings_field( 'bg_color', __( 'Background Color', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'bg_color', 'desc' => 'Default: #151515' ) );
+		add_settings_field( 'text_color', __( 'Text Color', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'text_color', 'desc' => 'Default: #ffffff' ) );
+		add_settings_field( 'accent_color', __( 'Accent / Highlight Color', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'accent_color', 'desc' => 'Default: #D4AF37 (Metallic Gold)' ) );
+		add_settings_field( 'badge_color', __( 'Verified Badge Color', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_color' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'badge_color', 'desc' => 'Default: #25D366' ) );
+		add_settings_field( 'font_family', __( 'Font Family (CSS)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_text' ), 'wclsp-settings', 'wclsp_style_section', array( 'id' => 'font_family', 'desc' => 'e.g. "Mulish", sans-serif or "inherit"' ) );
 
-    public static function field_color( $args ) {
-        $opts = self::get_options();
-        $id   = esc_attr( $args['id'] );
-        $val  = esc_attr( $opts[ $id ] ?? '#000000' );
-        $desc = $args['desc'] ?? '';
+		// 2. Position & Layout
+		add_settings_section( 'wclsp_position_section', __( 'Position & Layout', 'flashproof-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
+		add_settings_field( 'position_desktop', __( 'Desktop Position', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_select' ), 'wclsp-settings', 'wclsp_position_section', array(
+			'id'      => 'position_desktop',
+			'options' => array(
+				'bottom-left'  => __( 'Bottom Left', 'flashproof-sales-popup-for-woo' ),
+				'bottom-right' => __( 'Bottom Right', 'flashproof-sales-popup-for-woo' ),
+			),
+		) );
+		add_settings_field( 'bottom_offset_desk', __( 'Desktop Bottom Offset (px)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_position_section', array( 'id' => 'bottom_offset_desk', 'min' => 0, 'max' => 300 ) );
+		add_settings_field( 'bottom_offset_mob', __( 'Mobile Bottom Offset (px)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_position_section', array( 'id' => 'bottom_offset_mob', 'min' => 0, 'max' => 300 ) );
+		add_settings_field( 'mobile_scale', __( 'Mobile Size Scale (%)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_position_section', array( 'id' => 'mobile_scale', 'min' => 60, 'max' => 110 ) );
 
-        echo '<input type="color" id="' . $id . '_picker" value="' . $val . '" style="vertical-align:middle; width:44px; height:34px; padding:0; cursor:pointer;" oninput="document.getElementById(\'' . $id . '\').value = this.value.toUpperCase();"> ';
-        echo '<input type="text" id="' . $id . '" name="wclsp_settings[' . $id . ']" value="' . $val . '" maxlength="7" placeholder="#000000" style="width:95px; vertical-align:middle; text-transform:uppercase; font-family:monospace; font-weight:600;" oninput="if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) { document.getElementById(\'' . $id . '_picker\').value = this.value; }">';
+		// 3. Timing & Behavior
+		add_settings_section( 'wclsp_behavior_section', __( 'Timing & Behavior', 'flashproof-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
+		add_settings_field( 'initial_delay', __( 'Initial Delay (seconds)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'initial_delay', 'min' => 1, 'max' => 60 ) );
+		add_settings_field( 'display_duration', __( 'Display Duration (seconds)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'display_duration', 'min' => 2, 'max' => 30 ) );
+		add_settings_field( 'min_interval', __( 'Minimum Interval (seconds)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'min_interval', 'min' => 5, 'max' => 300 ) );
+		add_settings_field( 'max_interval', __( 'Maximum Interval (seconds)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_behavior_section', array( 'id' => 'max_interval', 'min' => 5, 'max' => 300 ) );
 
-        if ( ! empty( $desc ) ) {
-            echo '<p class="description" style="margin-top:4px; font-size:12px; color:#646970;">' . esc_html( $desc ) . '</p>';
-        }
-    }
+		// 4. Query & Cache
+		add_settings_section( 'wclsp_query_section', __( 'Query & Cache Settings', 'flashproof-sales-popup-for-woo' ), '__return_empty_string', 'wclsp-settings' );
+		add_settings_field( 'order_hours', __( 'Order History Scope (hours)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_query_section', array( 'id' => 'order_hours', 'min' => 1, 'max' => 720 ) );
+		add_settings_field( 'order_statuses', __( 'Included Order Statuses', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_statuses' ), 'wclsp-settings', 'wclsp_query_section', array( 'id' => 'order_statuses' ) );
+		add_settings_field( 'cache_minutes', __( 'Transient Cache Lifetime (minutes)', 'flashproof-sales-popup-for-woo' ), array( __CLASS__, 'field_number' ), 'wclsp-settings', 'wclsp_query_section', array( 'id' => 'cache_minutes', 'min' => 1, 'max' => 120 ) );
+	}
 
-    public static function field_select( $args ) {
-        $opts    = self::get_options();
-        $id      = esc_attr( $args['id'] );
-        $val     = esc_attr( $opts[ $id ] ?? 'bottom-left' );
-        $options = $args['options'] ?? array();
+	public static function sanitize_settings( $input ) {
+		$sanitized = array();
+		$defaults  = self::get_defaults();
 
-        echo '<select id="' . $id . '" name="wclsp_settings[' . $id . ']" style="vertical-align:middle;">';
-        foreach ( $options as $key => $label ) {
-            echo '<option value="' . esc_attr( $key ) . '" ' . selected( $val, $key, false ) . '>' . esc_html( $label ) . '</option>';
-        }
-        echo '</select>';
-    }
+		$clean_hex = function( $color, $default ) {
+			if ( ! empty( $color ) && preg_match( '/^#([a-fA-F0-9]{3}){1,2}$/', $color ) ) {
+				return $color;
+			}
+			return $default;
+		};
 
-    public static function field_text( $args ) {
-        $opts = self::get_options();
-        $id   = esc_attr( $args['id'] );
-        $val  = esc_attr( $opts[ $id ] ?? '' );
-        echo '<input type="text" name="wclsp_settings[' . $id . ']" value="' . $val . '" class="regular-text">';
-        if ( ! empty( $args['desc'] ) ) {
-            echo '<p class="description" style="margin-top:4px; font-size:12px; color:#646970;">' . esc_html( $args['desc'] ) . '</p>';
-        }
-    }
+		$sanitized['bg_color']           = $clean_hex( $input['bg_color'] ?? '', $defaults['bg_color'] );
+		$sanitized['text_color']         = $clean_hex( $input['text_color'] ?? '', $defaults['text_color'] );
+		$sanitized['accent_color']       = $clean_hex( $input['accent_color'] ?? '', $defaults['accent_color'] );
+		$badge_color                     = $input['badge_color'] ?? $defaults['badge_color'];
+		$sanitized['badge_color']        = $clean_hex( $badge_color, $defaults['badge_color'] );
+		$sanitized['font_family']        = sanitize_text_field( $input['font_family'] ?? $defaults['font_family'] );
 
-    public static function field_number( $args ) {
-        $opts = self::get_options();
-        $id   = esc_attr( $args['id'] );
-        $val  = esc_attr( $opts[ $id ] ?? '' );
-        $min  = isset( $args['min'] ) ? ' min="' . intval( $args['min'] ) . '"' : '';
-        $max  = isset( $args['max'] ) ? ' max="' . intval( $args['max'] ) . '"' : '';
-        echo '<input type="number" name="wclsp_settings[' . $id . ']" value="' . $val . '" class="small-text"' . $min . $max . '>';
-    }
+		$valid_positions                 = array( 'bottom-left', 'bottom-right' );
+		$sanitized['position_desktop']   = in_array( $input['position_desktop'] ?? '', $valid_positions, true ) ? $input['position_desktop'] : $defaults['position_desktop'];
+		$sanitized['bottom_offset_desk'] = absint( $input['bottom_offset_desk'] ?? $defaults['bottom_offset_desk'] );
+		$sanitized['bottom_offset_mob']  = absint( $input['bottom_offset_mob'] ?? $defaults['bottom_offset_mob'] );
+		$sanitized['mobile_scale']       = absint( $input['mobile_scale'] ?? $defaults['mobile_scale'] );
 
-    public static function field_statuses( $args ) {
-        $opts      = self::get_options();
-        $selected  = (array) ( $opts['order_statuses'] ?? array( 'wc-on-hold' ) );
-        $statuses  = array(
-            'wc-on-hold'    => __( 'On hold (Default)', 'lightweight-sales-popup-for-woo' ),
-            'wc-pending'    => __( 'Pending payment', 'lightweight-sales-popup-for-woo' ),
-            'wc-processing' => __( 'Processing', 'lightweight-sales-popup-for-woo' ),
-            'wc-completed'  => __( 'Completed', 'lightweight-sales-popup-for-woo' ),
-        );
+		$sanitized['initial_delay']      = absint( $input['initial_delay'] ?? $defaults['initial_delay'] );
+		$sanitized['display_duration']   = absint( $input['display_duration'] ?? $defaults['display_duration'] );
+		$sanitized['min_interval']       = absint( $input['min_interval'] ?? $defaults['min_interval'] );
+		$sanitized['max_interval']       = absint( $input['max_interval'] ?? $defaults['max_interval'] );
+		$sanitized['order_hours']        = absint( $input['order_hours'] ?? $defaults['order_hours'] );
 
-        echo '<fieldset style="display:flex; flex-direction:column; gap:6px;">';
-        foreach ( $statuses as $status_key => $label ) {
-            $checked = in_array( $status_key, $selected, true ) ? 'checked' : '';
-            echo '<label style="display:inline-flex; align-items:center; gap:8px;">';
-            echo '<input type="checkbox" name="wclsp_settings[order_statuses][]" value="' . esc_attr( $status_key ) . '" ' . $checked . '> ';
-            echo esc_html( $label );
-            echo '</label>';
-        }
-        echo '<p class="description" style="margin-top:4px; font-size:12px; color:#646970;">Select which order stages are eligible to trigger social proof notifications.</p>';
-        echo '</fieldset>';
-    }
+		$allowed_statuses  = array( 'wc-on-hold', 'wc-pending', 'wc-processing', 'wc-completed' );
+		$selected_statuses = array();
+		if ( ! empty( $input['order_statuses'] ) && is_array( $input['order_statuses'] ) ) {
+			foreach ( $input['order_statuses'] as $status ) {
+				if ( in_array( $status, $allowed_statuses, true ) ) {
+					$selected_statuses[] = sanitize_text_field( $status );
+				}
+			}
+		}
+		$sanitized['order_statuses'] = ! empty( $selected_statuses ) ? $selected_statuses : array( 'wc-on-hold' );
+		$sanitized['cache_minutes']  = absint( $input['cache_minutes'] ?? $defaults['cache_minutes'] );
 
-    public static function render_settings_page() {
-        if ( ! current_user_can( 'manage_woocommerce' ) ) {
-            return;
-        }
+		delete_transient( 'wclsp_social_proof_cache' );
 
-        $is_dismissed = get_user_meta( get_current_user_id(), 'wclsp_optin_dismissed', true );
-        $current_user = wp_get_current_user();
-        $site_domain  = wp_parse_url( home_url(), PHP_URL_HOST );
-        $dismiss_url  = wp_nonce_url( add_query_arg( 'wclsp_dismiss_optin', '1' ), 'wclsp_dismiss_optin_nonce' );
-        ?>
-        <div class="wrap" style="max-width: 900px;">
-            <h1><?php esc_html_e( 'WooCommerce Sales Popup Settings', 'lightweight-sales-popup-for-woo' ); ?></h1>
+		return $sanitized;
+	}
 
-            <?php if ( ! $is_dismissed ) : ?>
-                <!-- Optional, 100% WordPress.org Compliant Opt-In Card -->
-                <div id="wclsp-optin-card" class="wclsp-optin-card" style="margin: 20px 0 25px; padding: 22px 24px; background: #ffffff; border: 1px solid #c7d2fe; border-left: 4px solid #4f46e5; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; transition: opacity 0.3s ease, height 0.3s ease;">
+	public static function field_color( $args ) {
+		$opts = self::get_options();
+		$id   = esc_attr( $args['id'] );
+		$val  = esc_attr( $opts[ $id ] ?? '#000000' );
+		$desc = $args['desc'] ?? '';
 
-                    <a href="<?php echo esc_url( $dismiss_url ); ?>" id="wclsp-close-btn" title="<?php esc_attr_e( 'Dismiss this notice', 'lightweight-sales-popup-for-woo' ); ?>" style="position: absolute; top: 14px; right: 16px; text-decoration: none; color: #94a3b8; font-size: 18px; font-weight: 700; line-height: 1;">&times;</a>
+		echo '<input type="color" id="' . $id . '_picker" value="' . $val . '" style="vertical-align:middle; width:44px; height:34px; padding:0; cursor:pointer;" oninput="document.getElementById(\'' . $id . '\').value = this.value.toUpperCase();"> ';
+		echo '<input type="text" id="' . $id . '" name="wclsp_settings[' . $id . ']" value="' . $val . '" maxlength="7" placeholder="#000000" style="width:95px; vertical-align:middle; text-transform:uppercase; font-family:monospace; font-weight:600;" oninput="if (/^#[0-9A-Fa-f]{6}$/.test(this.value)) { document.getElementById(\'' . $id . '_picker\').value = this.value; }">';
 
-                    <div style="display: flex; gap: 14px; align-items: flex-start;">
-                        <span style="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; background: #eef2ff; color: #4f46e5; border-radius: 8px; font-size: 20px; flex-shrink: 0;">⚡</span>
-                        <div style="flex-grow: 1;">
-                            <h2 style="margin: 0 0 6px; font-size: 16px; font-weight: 700; color: #0f172a;">
-                                <?php esc_html_e( 'Get Free Styling Presets & Feature Updates', 'lightweight-sales-popup-for-woo' ); ?>
-                            </h2>
-                            <p style="margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #475569;">
-                                <?php esc_html_e( 'Optional: Join the developer updates list to receive curated CSS styling presets, conversion optimization guides, and early access to new feature releases.', 'lightweight-sales-popup-for-woo' ); ?>
-                            </p>
+		if ( ! empty( $desc ) ) {
+			echo '<p class="description" style="margin-top:4px; font-size:12px; color:#646970;">' . esc_html( $desc ) . '</p>';
+		}
+	}
 
-                            <!-- AJAX Self-Hosted Lead Form -->
-                            <form id="wclsp-ajax-optin-form" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-                                <input type="text" name="name" value="<?php echo esc_attr( $current_user->display_name ); ?>" placeholder="<?php esc_attr_e( 'Your Name', 'lightweight-sales-popup-for-woo' ); ?>" required style="height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px; width: 170px;">
+	public static function field_select( $args ) {
+		$opts    = self::get_options();
+		$id      = esc_attr( $args['id'] );
+		$val     = esc_attr( $opts[ $id ] ?? 'bottom-left' );
+		$options = $args['options'] ?? array();
 
-                                <input type="email" name="email" value="<?php echo esc_attr( $current_user->user_email ); ?>" placeholder="<?php esc_attr_e( 'Your Email', 'lightweight-sales-popup-for-woo' ); ?>" required style="height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px; width: 220px;">
+		echo '<select id="' . $id . '" name="wclsp_settings[' . $id . ']" style="vertical-align:middle;">';
+		foreach ( $options as $key => $label ) {
+			echo '<option value="' . esc_attr( $key ) . '" ' . selected( $val, $key, false ) . '>' . esc_html( $label ) . '</option>';
+		}
+		echo '</select>';
+	}
 
-                                <input type="hidden" name="domain" value="<?php echo esc_attr( $site_domain ); ?>">
-                                <input type="hidden" name="plugin_version" value="1.2.0">
+	public static function field_text( $args ) {
+		$opts = self::get_options();
+		$id   = esc_attr( $args['id'] );
+		$val  = esc_attr( $opts[ $id ] ?? '' );
+		echo '<input type="text" name="wclsp_settings[' . $id . ']" value="' . $val . '" class="regular-text">';
+		if ( ! empty( $args['desc'] ) ) {
+			echo '<p class="description" style="margin-top:4px; font-size:12px; color:#646970;">' . esc_html( $args['desc'] ) . '</p>';
+		}
+	}
 
-                                <button type="submit" id="wclsp-submit-btn" class="button button-primary" style="height: 36px; line-height: 34px; padding: 0 16px; background: #4f46e5; border-color: #4f46e5; font-weight: 600;">
-                                    <?php esc_html_e( 'Send Free Presets', 'lightweight-sales-popup-for-woo' ); ?>
-                                </button>
+	public static function field_number( $args ) {
+		$opts = self::get_options();
+		$id   = esc_attr( $args['id'] );
+		$val  = esc_attr( $opts[ $id ] ?? '' );
+		$min  = isset( $args['min'] ) ? ' min="' . intval( $args['min'] ) . '"' : '';
+		$max  = isset( $args['max'] ) ? ' max="' . intval( $args['max'] ) . '"' : '';
+		echo '<input type="number" name="wclsp_settings[' . $id . ']" value="' . $val . '" class="small-text"' . $min . $max . '>';
+	}
 
-                                <a href="<?php echo esc_url( $dismiss_url ); ?>" class="button button-secondary" style="height: 36px; line-height: 34px; padding: 0 14px; color: #64748b;">
-                                    <?php esc_html_e( 'No thanks, skip', 'lightweight-sales-popup-for-woo' ); ?>
-                                </a>
-                            </form>
+	public static function field_statuses( $args ) {
+		$opts      = self::get_options();
+		$selected  = (array) ( $opts['order_statuses'] ?? array( 'wc-on-hold' ) );
+		$statuses  = array(
+			'wc-on-hold'    => __( 'On hold (Default)', 'flashproof-sales-popup-for-woo' ),
+			'wc-pending'    => __( 'Pending payment', 'flashproof-sales-popup-for-woo' ),
+			'wc-processing' => __( 'Processing', 'flashproof-sales-popup-for-woo' ),
+			'wc-completed'  => __( 'Completed', 'flashproof-sales-popup-for-woo' ),
+		);
 
-                            <div id="wclsp-feedback-status" style="display: none; margin-top: 10px; font-size: 13px; font-weight: 600;"></div>
+		echo '<fieldset style="display:flex; flex-direction:column; gap:6px;">';
+		foreach ( $statuses as $status_key => $label ) {
+			$checked = in_array( $status_key, $selected, true ) ? 'checked' : '';
+			echo '<label style="display:inline-flex; align-items:center; gap:8px;">';
+			echo '<input type="checkbox" name="wclsp_settings[order_statuses][]" value="' . esc_attr( $status_key ) . '" ' . $checked . '> ';
+			echo esc_html( $label );
+			echo '</label>';
+		}
+		echo '<p class="description" style="margin-top:4px; font-size:12px; color:#646970;">' . esc_html__( 'Select which order stages are eligible to trigger social proof notifications.', 'flashproof-sales-popup-for-woo' ) . '</p>';
+		echo '</fieldset>';
+	}
 
-                            <p style="margin: 8px 0 0; font-size: 11px; color: #94a3b8;">
-                                <?php esc_html_e( '🔒 We respect your privacy. No spam. You can unsubscribe at any time.', 'lightweight-sales-popup-for-woo' ); ?>
-                            </p>
-                        </div>
-                    </div>
-                </div>
+	public static function render_settings_page() {
+		if ( ! current_user_can( 'manage_woocommerce' ) ) {
+			return;
+		}
 
-                <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    const optinForm  = document.getElementById('wclsp-ajax-optin-form');
-                    const optinCard  = document.getElementById('wclsp-optin-card');
-                    const submitBtn  = document.getElementById('wclsp-submit-btn');
-                    const statusBox  = document.getElementById('wclsp-feedback-status');
-                    const dismissUrl = '<?php echo esc_url_raw( $dismiss_url ); ?>';
+		$is_dismissed = get_user_meta( get_current_user_id(), 'wclsp_optin_dismissed', true );
+		$current_user = wp_get_current_user();
+		$site_domain  = wp_parse_url( home_url(), PHP_URL_HOST );
+		$dismiss_url  = wp_nonce_url( add_query_arg( 'wclsp_dismiss_optin', '1' ), 'wclsp_dismiss_optin_nonce' );
+		?>
+		<div class="wrap" style="max-width: 900px;">
+			<h1><?php esc_html_e( 'WooCommerce Sales Popup Settings', 'flashproof-sales-popup-for-woo' ); ?></h1>
 
-                    if (optinForm) {
-                        optinForm.addEventListener('submit', function(e) {
-                            e.preventDefault();
+			<?php if ( ! $is_dismissed ) : ?>
+				<!-- Optional Opt-In Card -->
+				<div id="wclsp-optin-card" class="wclsp-optin-card" style="margin: 20px 0 25px; padding: 22px 24px; background: #ffffff; border: 1px solid #c7d2fe; border-left: 4px solid #4f46e5; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); position: relative; transition: opacity 0.3s ease, height 0.3s ease;">
 
-                            submitBtn.disabled = true;
-                            submitBtn.innerText = '<?php echo esc_js( __( 'Sending...', 'lightweight-sales-popup-for-woo' ) ); ?>';
+					<a href="<?php echo esc_url( $dismiss_url ); ?>" id="wclsp-close-btn" title="<?php esc_attr_e( 'Dismiss this notice', 'flashproof-sales-popup-for-woo' ); ?>" style="position: absolute; top: 14px; right: 16px; text-decoration: none; color: #94a3b8; font-size: 18px; font-weight: 700; line-height: 1;">&times;</a>
 
-                            const formData = new FormData(optinForm);
+					<div style="display: flex; gap: 14px; align-items: flex-start;">
+						<span style="display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; background: #eef2ff; color: #4f46e5; border-radius: 8px; font-size: 20px; flex-shrink: 0;">⚡</span>
+						<div style="flex-grow: 1;">
+							<h2 style="margin: 0 0 6px; font-size: 16px; font-weight: 700; color: #0f172a;">
+								<?php esc_html_e( 'Get Free Styling Presets & Feature Updates', 'flashproof-sales-popup-for-woo' ); ?>
+							</h2>
+							<p style="margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #475569;">
+								<?php esc_html_e( 'Optional: Join the developer updates list to receive curated CSS styling presets, conversion optimization guides, and early access to new feature releases.', 'flashproof-sales-popup-for-woo' ); ?>
+							</p>
 
-                            fetch('https://michaelnnah.com/api/wclsp-leads.php', {
-                                method: 'POST',
-                                body: formData
-                            })
-                            .then(response => response.json())
-                            .then(data => {
-                                optinForm.style.display = 'none';
-                                statusBox.style.display = 'block';
-                                statusBox.style.color = '#16a34a';
-                                statusBox.textContent = '✅ <?php echo esc_js( __( 'Snippet package dispatched! Check your inbox shortly.', 'lightweight-sales-popup-for-woo' ) ); ?>';
+							<!-- AJAX Self-Hosted Lead Form -->
+							<form id="wclsp-ajax-optin-form" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+								<input type="text" name="name" value="<?php echo esc_attr( $current_user->display_name ); ?>" placeholder="<?php esc_attr_e( 'Your Name', 'flashproof-sales-popup-for-woo' ); ?>" required style="height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px; width: 170px;">
 
-                                // Dismiss banner in user meta after 2.5s
-                                setTimeout(function() {
-                                    window.location.href = dismissUrl;
-                                }, 2500);
-                            })
-                            .catch(error => {
-                                submitBtn.disabled = false;
-                                submitBtn.innerText = '<?php echo esc_js( __( 'Send Free Presets', 'lightweight-sales-popup-for-woo' ) ); ?>';
-                                statusBox.style.display = 'block';
-                                statusBox.style.color = '#dc2626';
-                                statusBox.textContent = '❌ <?php echo esc_js( __( 'Could not dispatch. Please try again or skip.', 'lightweight-sales-popup-for-woo' ) ); ?>';
-                            });
-                        });
-                    }
-                });
-                </script>
-            <?php endif; ?>
+								<input type="email" name="email" value="<?php echo esc_attr( $current_user->user_email ); ?>" placeholder="<?php esc_attr_e( 'Your Email', 'flashproof-sales-popup-for-woo' ); ?>" required style="height: 36px; padding: 0 12px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 6px; width: 220px;">
 
-            <form action="options.php" method="post">
-                <?php
-                settings_fields( 'wclsp_settings_group' );
-                do_settings_sections( 'wclsp-settings' );
-                submit_button( __( 'Save Changes', 'lightweight-sales-popup-for-woo' ) );
-                ?>
-            </form>
-        </div>
-        <?php
-    }
+								<input type="hidden" name="domain" value="<?php echo esc_attr( $site_domain ); ?>">
+								<input type="hidden" name="plugin_version" value="1.2.0">
+
+								<button type="submit" id="wclsp-submit-btn" class="button button-primary" style="height: 36px; line-height: 34px; padding: 0 16px; background: #4f46e5; border-color: #4f46e5; font-weight: 600;">
+									<?php esc_html_e( 'Send Free Presets', 'flashproof-sales-popup-for-woo' ); ?>
+								</button>
+
+								<a href="<?php echo esc_url( $dismiss_url ); ?>" class="button button-secondary" style="height: 36px; line-height: 34px; padding: 0 14px; color: #64748b;">
+									<?php esc_html_e( 'No thanks, skip', 'flashproof-sales-popup-for-woo' ); ?>
+								</a>
+							</form>
+
+							<div id="wclsp-feedback-status" style="display: none; margin-top: 10px; font-size: 13px; font-weight: 600;"></div>
+
+							<p style="margin: 8px 0 0; font-size: 11px; color: #94a3b8;">
+								<?php esc_html_e( '🔒 We respect your privacy. No spam. You can unsubscribe at any time.', 'flashproof-sales-popup-for-woo' ); ?>
+							</p>
+						</div>
+					</div>
+				</div>
+			<?php endif; ?>
+
+			<form action="options.php" method="post">
+				<?php
+				settings_fields( 'wclsp_settings_group' );
+				do_settings_sections( 'wclsp-settings' );
+				submit_button( __( 'Save Changes', 'flashproof-sales-popup-for-woo' ) );
+				?>
+			</form>
+		</div>
+		<?php
+	}
 }
 
 endif;
