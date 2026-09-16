@@ -56,8 +56,8 @@ This plugin optionally connects to an external service on michaelnnah.com to han
 * Provider: Michael Nnah (https://portfolio.michaelnnah.com/)
 * Purpose: Transmits an administrator email address solely when the store administrator explicitly submits the optional email opt-in form on the plugin settings screen.
 * Data Sent: Administrator name and email address. No store customer data, order details, or sensitive metadata is ever transmitted.
-* Terms of Service: https://portfolio.michaelnnah.com/terms/
-* Privacy Policy: https://portfolio.michaelnnah.com/privacy/
+* Terms of Service: https://portfolio.michaelnnah.com/
+* Privacy Policy: https://portfolio.michaelnnah.com/
 
 == Screenshots ==
 
